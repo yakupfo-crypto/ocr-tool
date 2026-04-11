@@ -3,53 +3,64 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hızlı OCR Tarayıcı</title>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <title>Sürekli OCR Sistemi</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; background: #f0f0f0; }
-        #drop-zone { border: 2px dashed #007bff; padding: 30px; text-align: center; background: white; border-radius: 10px; }
-        #output { white-space: pre-wrap; background: white; padding: 15px; margin-top: 20px; border-radius: 5px; border: 1px solid #ddd; min-height: 200px; font-size: 14px; }
-        .loading { color: #007bff; font-weight: bold; }
+        body { font-family: sans-serif; padding: 20px; background: #f0f2f5; }
+        #drop-area { border: 2px dashed #ccc; padding: 30px; text-align: center; background: white; }
+        #output { white-space: pre-wrap; background: #fff; border: 1px solid #ddd; margin-top: 20px; padding: 15px; min-height: 200px; }
     </style>
 </head>
 <body>
 
-    <div id="drop-zone">
-        <h3>Görseli Seçin veya Buraya Bırakın</h3>
-        <input type="file" id="image-input" accept="image/*" style="display: block; margin: 20px auto;">
-        <div id="status">Durum: Hazır</div>
+    <div id="drop-area">
+        <h3>Görüntüyü Buraya Yükleyin</h3>
+        <input type="file" id="imageInput" accept="image/*">
     </div>
-
-    <div id="output">Metin burada görünecek...</div>
+    
+    <div id="status"></div>
+    <div id="output" placeholder="Metin burada görünecek..."></div>
 
     <script>
-        const input = document.getElementById('image-input');
-        const status = document.getElementById('status');
+        const API_KEY = 'BURAYA_GOOGLE_API_ANAHTARINI_YAZIN';
+        const imageInput = document.getElementById('imageInput');
         const output = document.getElementById('output');
+        const status = document.getElementById('status');
 
-        input.addEventListener('change', async (e) => {
+        imageInput.onchange = async (e) => {
             const file = e.target.files[0];
             if (!file) return;
 
-            status.innerHTML = '<span class="loading">İşleniyor... Lütfen bekleyin.</span>';
-            output.innerText = "Analiz ediliyor...";
+            status.innerText = "İşleniyor (Google Cloud Vision)...";
+            
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = async () => {
+                const base64Content = reader.result.split(',')[1];
 
-            try {
-                // 'tur' parametresi ile Türkçe karakterleri sıfır hataya yaklaştırır
-                const result = await Tesseract.recognize(file, 'tur', {
-                    logger: m => {
-                        if(m.status === 'recognizing text') {
-                            status.innerText = `İlerleme: %${(m.progress * 100).toFixed(0)}`;
-                        }
-                    }
-                });
+                const requestBody = {
+                    requests: [{
+                        image: { content: base64Content },
+                        features: [{ type: "TEXT_DETECTION" }]
+                    }]
+                };
 
-                output.innerText = result.data.text;
-                status.innerText = "Durum: Tamamlandı!";
-            } catch (error) {
-                status.innerText = "Hata oluştu: " + error.message;
-            }
-        });
+                try {
+                    const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${API_KEY}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(requestBody)
+                    });
+
+                    const data = await response.json();
+                    const resultText = data.responses[0].fullTextAnnotation.text;
+                    output.innerText = resultText;
+                    status.innerText = "Tamamlandı.";
+                } catch (err) {
+                    status.innerText = "Hata oluştu!";
+                    console.error(err);
+                }
+            };
+        };
     </script>
 </body>
 </html>
