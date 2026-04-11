@@ -3,29 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sıfır Hata OCR Bölücü Pro</title>
+    <title>Maç Sonuçları OCR Pro</title>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
-        body { font-family: sans-serif; padding: 15px; background: #f0f2f5; line-height: 1.6; }
-        .container { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        #drop-area { border: 3px dashed #007bff; padding: 40px 20px; text-align: center; cursor: pointer; border-radius: 10px; color: #007bff; font-weight: bold; }
-        #status { margin: 15px 0; color: #d9534f; font-weight: bold; font-size: 14px; }
-        #output { white-space: pre-wrap; background: #fff; padding: 15px; border: 1px solid #ccc; border-radius: 8px; min-height: 150px; max-height: 400px; overflow-y: auto; font-size: 13px; }
-        .progress-bar { height: 10px; background: #e0e0e0; border-radius: 5px; margin-top: 10px; overflow: hidden; display: none; }
-        #progress-fill { height: 100%; background: #28a745; width: 0%; transition: width 0.3s; }
+        body { font-family: 'Segoe UI', sans-serif; padding: 10px; background: #eef2f7; }
+        .container { max-width: 500px; margin: auto; background: white; padding: 15px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        #drop-area { border: 2px dashed #28a745; padding: 30px; text-align: center; border-radius: 10px; color: #28a745; font-weight: bold; cursor: pointer; }
+        #status { margin: 10px 0; font-size: 13px; color: #555; text-align: center; }
+        #output { white-space: pre-wrap; background: #222; color: #fff; padding: 15px; border-radius: 10px; min-height: 200px; max-height: 500px; overflow-y: auto; font-family: monospace; font-size: 12px; }
+        .progress-bar { height: 8px; background: #ddd; border-radius: 4px; overflow: hidden; margin-bottom: 10px; display: none; }
+        #p-fill { height: 100%; background: #28a745; width: 0%; transition: 0.3s; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>Süper Uzun Ekran İşleyici</h2>
-    <div id="drop-area">RESMİ BURAYA YÜKLEYİN <br> (Dokun ve Seç)</div>
+    <h3 style="text-align: center;">Maç Listesi Dönüştürücü</h3>
+    <div id="drop-area">Ekran Görüntüsü Yükle</div>
     <input type="file" id="fileElem" accept="image/*" style="display:none">
     
-    <div id="status">Hazır. Lütfen resim seçin.</div>
-    <div class="progress-bar" id="pBar"><div id="progress-fill"></div></div>
+    <div id="status">Bekleniyor...</div>
+    <div class="progress-bar" id="p-bar"><div id="p-fill"></div></div>
     
-    <div id="output" contenteditable="true">Metinler otomatik olarak burada birleşecek...</div>
+    <div id="output">Sonuçlar burada (IY skorları dahil) listelenecek...</div>
 </div>
 
 <script>
@@ -33,53 +33,62 @@
     const fileElem = document.getElementById('fileElem');
     const output = document.getElementById('output');
     const status = document.getElementById('status');
-    const pFill = document.getElementById('progress-fill');
-    const pBar = document.getElementById('pBar');
+    const pFill = document.getElementById('p-fill');
+    const pBar = document.getElementById('p-bar');
 
     dropArea.onclick = () => fileElem.click();
 
     fileElem.onchange = function(e) {
         const file = e.target.files[0];
-        if (file) processLongImage(file);
+        if (file) processImage(file);
     };
 
-    async function processLongImage(file) {
+    async function processImage(file) {
         output.innerText = "";
-        status.innerText = "Resim analiz ediliyor...";
         pBar.style.display = "block";
+        status.innerText = "Resim işleniyor (Görüntü iyileştirme aktif)...";
         
         const img = new Image();
         img.src = URL.createObjectURL(file);
         
         img.onload = async () => {
-            const chunkHeight = 1500; // Resmi 1500 piksellik parçalara böl (Hata önleyici)
-            const totalChunks = Math.ceil(img.height / chunkHeight);
+            // Bellek hatasını önlemek için 1200px parçalar idealdir
+            const chunkH = 1200;
+            const totalC = Math.ceil(img.height / chunkH);
             
             const worker = await Tesseract.createWorker('tur');
-            
-            for (let i = 0; i < totalChunks; i++) {
-                status.innerText = `İşleniyor: Parça ${i + 1} / ${totalChunks}`;
-                const progress = ((i + 1) / totalChunks) * 100;
-                pFill.style.width = progress + "%";
+            // OCR Ayarları: Maç listeleri gibi yapılar için PSM 6 (Blok metin) en iyisidir
+            await worker.setParameters({
+                tessedit_pageseg_mode: '6', 
+                preserve_interword_spaces: '1'
+            });
+
+            for (let i = 0; i < totalC; i++) {
+                status.innerText = `Okunuyor: %${Math.round(((i+1)/totalC)*100)}`;
+                pFill.style.width = ((i+1)/totalC)*100 + "%";
 
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
-                const heightToDraw = Math.min(chunkHeight, img.height - (i * chunkHeight));
+                const drawH = Math.min(chunkH, img.height - (i * chunkH));
                 
                 canvas.width = img.width;
-                canvas.height = heightToDraw;
-                
-                // Resmi belirli koordinattan kesip canvas'a yapıştır
-                ctx.drawImage(img, 0, i * chunkHeight, img.width, heightToDraw, 0, 0, img.width, heightToDraw);
+                canvas.height = drawH;
+
+                // GÖRÜNTÜ İYİLEŞTİRME: Kontrastı artırarak skorları belirginleştir
+                ctx.filter = 'contrast(1.4) grayscale(1)'; 
+                ctx.drawImage(img, 0, i * chunkH, img.width, drawH, 0, 0, img.width, drawH);
                 
                 const { data: { text } } = await worker.recognize(canvas);
-                output.innerText += text + "\n";
+                
+                // Küçük harf hatalarını ve gereksiz boşlukları temizleyerek ekle
+                const cleanedText = text.replace(/\n\s*\n/g, '\n'); 
+                output.innerText += cleanedText;
             }
 
-            status.innerText = "Tamamlandı! Tüm metinler birleştirildi.";
+            status.innerText = "İşlem bitti. Skorları kontrol edebilirsiniz.";
             await worker.terminate();
         };
-    };
+    }
 </script>
 </body>
 </html>
