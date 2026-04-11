@@ -6,28 +6,27 @@
     <title>Sıfır Hata Maç OCR</title>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; padding: 10px; background: #1a1a1a; color: #eee; }
-        .container { max-width: 500px; margin: auto; background: #2d2d2d; padding: 20px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        #drop-area { border: 2px dashed #4caf50; padding: 30px; text-align: center; border-radius: 10px; color: #4caf50; font-weight: bold; cursor: pointer; background: rgba(76, 175, 80, 0.05); }
-        #status { margin: 15px 0; font-size: 14px; text-align: center; color: #ffeb3b; }
-        #output { white-space: pre-wrap; background: #000; color: #00ff41; padding: 15px; border-radius: 10px; min-height: 250px; max-height: 500px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 13px; border: 1px solid #333; }
-        .progress-bar { height: 10px; background: #444; border-radius: 5px; overflow: hidden; margin-bottom: 15px; display: none; }
-        #p-fill { height: 100%; background: #4caf50; width: 0%; transition: 0.4s; }
-        .btn-copy { width: 100%; padding: 10px; margin-top: 10px; background: #4caf50; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        body { font-family: 'Courier New', monospace; background: #1a1a1a; color: #00ff00; padding: 15px; }
+        .container { max-width: 600px; margin: auto; border: 1px solid #333; padding: 20px; border-radius: 10px; }
+        #drop-area { border: 2px dashed #00ff00; padding: 30px; text-align: center; cursor: pointer; margin-bottom: 20px; }
+        #status { color: #fff; text-align: center; margin-bottom: 10px; font-size: 14px; }
+        #output { background: #000; padding: 15px; border-radius: 5px; min-height: 300px; white-space: pre-wrap; font-size: 13px; line-height: 1.5; border: 1px solid #00ff00; }
+        .progress { height: 5px; background: #333; margin-bottom: 20px; }
+        #p-fill { height: 100%; background: #00ff00; width: 0%; }
+        button { background: #00ff00; border: none; padding: 10px; width: 100%; font-weight: bold; cursor: pointer; margin-top: 10px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h3 style="text-align: center; color: #4caf50;">Maç Sonuç Analizörü</h3>
-    <div id="drop-area">Görseli Buraya Bırakın veya Seçin</div>
+    <div id="drop-area">EKRAN GÖRÜNTÜSÜNÜ BURAYA BIRAK VEYA SEÇ</div>
     <input type="file" id="fileElem" accept="image/*" style="display:none">
     
-    <div id="status">Sistem hazır.</div>
-    <div class="progress-bar" id="p-bar"><div id="p-fill"></div></div>
+    <div id="status">Sistem Hazır...</div>
+    <div class="progress"><div id="p-fill"></div></div>
     
-    <div id="output">Sonuçlar buraya gelecek...</div>
-    <button class="btn-copy" onclick="copyResult()">Metni Kopyala</button>
+    <div id="output">Sonuçlar analiz ediliyor...</div>
+    <button onclick="copyText()">Metni Kopyala</button>
 </div>
 
 <script>
@@ -36,7 +35,6 @@
     const output = document.getElementById('output');
     const status = document.getElementById('status');
     const pFill = document.getElementById('p-fill');
-    const pBar = document.getElementById('p-bar');
 
     dropArea.onclick = () => fileElem.click();
 
@@ -47,29 +45,28 @@
 
     async function processImage(file) {
         output.innerText = "";
-        pBar.style.display = "block";
-        status.innerText = "Görüntü kalitesi artırılıyor...";
+        status.innerText = "Görüntü ön işleme tabi tutuluyor...";
         
         const img = new Image();
         img.src = URL.createObjectURL(file);
         
         img.onload = async () => {
-            const worker = await Tesseract.createWorker('tur');
-            
-            // Hassas okuma ayarları
-            await worker.setParameters({
-                tessedit_pageseg_mode: '4', // Tek sütunlu değişken metin modu
-                tessjs_create_hocr: '0',
-                tessjs_create_tsv: '0'
-            });
-
-            // Parça parça okuma (Android RAM dostu)
-            const chunkH = 1000;
+            // Maç satırlarını daha iyi yakalamak için parçaları küçülttük
+            const chunkH = 800; 
             const totalC = Math.ceil(img.height / chunkH);
             
+            const worker = await Tesseract.createWorker('tur');
+            
+            // Hassas ayarlar: Satır bazlı okuma (PSM 7 veya 6)
+            await worker.setParameters({
+                tessedit_pageseg_mode: '6',
+                tessedit_char_whitelist: '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-():. ',
+            });
+
             for (let i = 0; i < totalC; i++) {
-                status.innerText = `İşleniyor: %${Math.round(((i+1)/totalC)*100)}`;
-                pFill.style.width = ((i+1)/totalC)*100 + "%";
+                const progress = Math.round(((i + 1) / totalC) * 100);
+                status.innerText = `Okuma yapılıyor: %${progress}`;
+                pFill.style.width = progress + "%";
 
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
@@ -78,27 +75,34 @@
                 canvas.width = img.width;
                 canvas.height = drawH;
 
-                // --- GÖRÜNTÜ İYİLEŞTİRME SİHİRİ ---
-                ctx.filter = 'grayscale(1) contrast(2) brightness(1.1) sharp(100)'; 
+                // Gelişmiş Filtre: Keskinleştirme ve yüksek kontrast
+                ctx.filter = 'contrast(1.6) grayscale(1) brightness(1.1)';
                 ctx.drawImage(img, 0, i * chunkH, img.width, drawH, 0, 0, img.width, drawH);
                 
                 const { data: { text } } = await worker.recognize(canvas);
                 
-                // Gereksiz karakter temizliği ve düzenleme
-                const lines = text.split('\n')
-                                  .map(line => line.trim())
-                                  .filter(line => line.length > 3); // Çok kısa anlamsız satırları ele
-                
-                output.innerText += lines.join('\n') + '\n';
+                // Akıllı Düzenleyici: Gereksiz boşlukları ve karakter hatalarını temizle
+                const formatted = text
+                    .split('\n')
+                    .filter(line => line.trim().length > 3) // Çok kısa anlamsız satırları at
+                    .map(line => line.replace(/\s\s+/g, ' ')) // Çoklu boşlukları tek yap
+                    .join('\n');
+
+                output.innerText += formatted + "\n";
             }
 
-            status.innerText = "Tamamlandı. IY Skorları eklendi.";
+            status.innerText = "Analiz başarıyla tamamlandı.";
             await worker.terminate();
         };
     }
 
-    function copyResult() {
-        navigator.clipboard.writeText(output.innerText);
+    function copyText() {
+        const el = document.createElement('textarea');
+        el.value = output.innerText;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
         alert("Metin kopyalandı!");
     }
 </script>
