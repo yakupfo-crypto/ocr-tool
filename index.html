@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sıfır Hata OCR Bölücü</title>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #f4f4f9; }
+        #drop-area { border: 2px dashed #ccc; padding: 30px; text-align: center; cursor: pointer; }
+        #output { white-space: pre-wrap; background: white; padding: 15px; border-radius: 8px; margin-top: 20px; border: 1px solid #ddd; }
+        .status { color: blue; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h2>Otomatik Ekran Görüntüsü İşleyici</h2>
+    <div id="drop-area">Resmi Seç veya Buraya Sürükle</div>
+    <input type="file" id="fileElem" accept="image/*" style="display:none">
+    
+    <div id="status" class="status"></div>
+    <div id="output" contenteditable="true">Metinler burada görünecek...</div>
+
+    <script>
+        const dropArea = document.getElementById('drop-area');
+        const fileElem = document.getElementById('fileElem');
+        const output = document.getElementById('output');
+        const status = document.getElementById('status');
+
+        dropArea.onclick = () => fileElem.click();
+
+        fileElem.onchange = function(e) {
+            const file = e.target.files[0];
+            processImage(file);
+        };
+
+        async function processImage(file) {
+            status.innerText = "Resim işleniyor ve parçalanıyor...";
+            const img = new Image();
+            img.src = URL.createObjectURL(file);
+            
+            img.onload = async () => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+
+                status.innerText = "OCR Başlatılıyor (Tesseract)...";
+                
+                // Tesseract ile Türkçe dil desteğiyle okuma yap
+                const worker = await Tesseract.createWorker('tur');
+                const { data: { text } } = await worker.recognize(img);
+                
+                output.innerText = text;
+                status.innerText = "İşlem başarıyla tamamlandı!";
+                await worker.terminate();
+            };
+        }
+    </script>
+</body>
+</html>
