@@ -3,85 +3,85 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sıfır Hata Maç OCR</title>
+    <title>Kesin Sonuç OCR</title>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
-        body { font-family: sans-serif; background: #121212; color: white; padding: 15px; }
-        .box { background: #1e1e1e; padding: 20px; border-radius: 15px; border: 1px solid #333; }
-        #drop-area { border: 2px dashed #00ff00; padding: 30px; text-align: center; color: #00ff00; cursor: pointer; }
-        #output { margin-top: 20px; background: black; padding: 10px; border-radius: 5px; font-family: monospace; white-space: pre; overflow-x: auto; font-size: 14px; border-left: 4px solid #00ff00; }
-        .loader { height: 5px; background: #333; margin-top: 10px; display:none; }
-        .fill { height: 100%; background: #00ff00; width: 0%; transition: 0.3s; }
+        body { font-family: sans-serif; background: #1a1a1a; color: white; padding: 15px; }
+        .box { max-width: 500px; margin: auto; background: #2d2d2d; padding: 20px; border-radius: 15px; border: 1px solid #444; }
+        #drop-area { border: 2px dashed #00ff00; padding: 30px; text-align: center; cursor: pointer; color: #00ff00; }
+        #output { margin-top: 20px; white-space: pre-wrap; background: #000; padding: 15px; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 13px; color: #00ff00; border: 1px solid #333; height: 300px; overflow-y: auto; }
+        .status { font-size: 12px; color: #aaa; margin: 10px 0; text-align: center; }
     </style>
 </head>
 <body>
 
 <div class="box">
-    <h3>🔍 Kesin Sonuçlu Maç Çözücü</h3>
-    <div id="drop-area">EKRAN GÖRÜNTÜSÜ SEÇ (IY Skorları Dahil)</div>
+    <h3 style="text-align: center;">IY Skor Destekli Tarayıcı</h3>
+    <div id="drop-area">Uzuuuun Ekran Görüntüsünü Seç</div>
     <input type="file" id="fileElem" accept="image/*" style="display:none">
     
-    <div id="status" style="margin-top:10px; font-size:12px;">Hazır.</div>
-    <div class="loader" id="loader"><div class="fill" id="fill"></div></div>
-    
-    <div id="output">Sonuçlar buraya gelecek...</div>
+    <div id="status" class="status">Hazır...</div>
+    <div id="output">Skorlar burada birleşecek...</div>
 </div>
 
 <script>
-    const fileElem = document.getElementById('fileElem');
     const dropArea = document.getElementById('drop-area');
+    const fileElem = document.getElementById('fileElem');
     const output = document.getElementById('output');
-    const fill = document.getElementById('fill');
-    const loader = document.getElementById('loader');
+    const status = document.getElementById('status');
 
     dropArea.onclick = () => fileElem.click();
 
-    fileElem.onchange = e => {
+    fileElem.onchange = function(e) {
         const file = e.target.files[0];
-        if (file) startDeepOCR(file);
+        if (file) startDeepScan(file);
     };
 
-    async function startDeepOCR(file) {
-        output.innerText = "İşleniyor... Lütfen bekleyin.";
-        loader.style.display = "block";
+    async function startDeepScan(file) {
+        output.innerText = "";
+        status.innerText = "Yüksek çözünürlüklü analiz başlatılıyor...";
+        
         const img = new Image();
         img.src = URL.createObjectURL(file);
         
         img.onload = async () => {
+            // IY skorlarını yakalamak için parçaları daha küçük (800px) tutuyoruz
+            const chunkH = 800; 
+            const totalC = Math.ceil(img.height / chunkH);
+            
             const worker = await Tesseract.createWorker('tur');
-            // Kesinlik ayarları
+            
+            // KRİTİK AYAR: Sadece maç sonuçlarında görülebilecek karakterlere odaklan
             await worker.setParameters({
-                tessedit_char_whitelist: '0123456789-()ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz ',
-                tessedit_pageseg_mode: '6'
+                tessedit_char_whitelist: '0123456789-()ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzüğıişçöÜĞİİŞÇÖ. ',
+                tessedit_pageseg_mode: '6', // Tek blok metin olarak oku
             });
 
-            // Görüntüyü 1000 piksellik parçalara böl ama her parçayı 3 KAT BÜYÜT
-            const partH = 1000;
-            const totalParts = Math.ceil(img.height / partH);
-            let finalResult = "";
-
-            for (let i = 0; i < totalParts; i++) {
-                document.getElementById('status').innerText = `Parça ${i+1}/${totalParts} işleniyor...`;
-                fill.style.width = ((i+1)/totalParts)*100 + "%";
-
+            for (let i = 0; i < totalC; i++) {
+                status.innerText = `Derin Tarama: %${Math.round(((i+1)/totalC)*100)}`;
+                
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
-                const drawH = Math.min(partH, img.height - (i * partH));
+                const drawH = Math.min(chunkH, img.height - (i * chunkH));
+                
+                canvas.width = img.width;
+                canvas.height = drawH;
 
-                // ZOOM ETKİSİ: OCR'ın küçük yazıları görmesi için %300 büyütüyoruz
-                canvas.width = img.width * 2; 
-                canvas.height = drawH * 2;
-
-                // Görüntü Kalitesi İyileştirme
-                ctx.filter = 'contrast(1.5) grayscale(1) brightness(1.1)';
-                ctx.drawImage(img, 0, i * partH, img.width, drawH, 0, 0, canvas.width, canvas.height);
+                // GÖRÜNTÜYÜ "ADLİ BİLİŞİM" SEVİYESİNDE NETLEŞTİR
+                // Soluk IY skorlarını siyah-beyaz yaparak belirginleştirir
+                ctx.filter = 'contrast(2) brightness(1.1) grayscale(1)'; 
+                ctx.drawImage(img, 0, i * chunkH, img.width, drawH, 0, 0, img.width, drawH);
                 
                 const { data: { text } } = await worker.recognize(canvas);
-                finalResult += text + "\n";
+                
+                // Gereksiz "Ms", "B", "v0" gibi tek karakterlik OCR hatalarını filtrele
+                const lines = text.split('\n');
+                const filteredLines = lines.filter(line => line.length > 3);
+                
+                output.innerText += filteredLines.join('\n') + '\n';
             }
 
-            output.innerText = finalResult.trim();
-            document.getElementById('status').innerText = "✅ Tamamlandı! IY skorlarını kontrol edin.";
+            status.innerText = "Tarama bitti! IY skorlarını kontrol edin.";
             await worker.terminate();
         };
     }
