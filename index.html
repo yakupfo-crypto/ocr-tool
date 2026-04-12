@@ -3,31 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hızlı ve Kesintisiz OCR</title>
+    <title>Skor Odaklı Keskin OCR</title>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 15px; background: #eceff1; color: #333; }
-        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 600px; margin: auto; }
-        #output { width: 100%; height: 400px; margin-top: 15px; padding: 12px; border: 1px solid #cfd8dc; border-radius: 8px; background: #fafafa; white-space: pre-wrap; text-align: left; overflow-y: auto; box-sizing: border-box; font-size: 14px; }
-        button { background: #1e88e5; color: white; border: none; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-size: 16px; width: 100%; font-weight: bold; margin-top: 10px; }
-        button:disabled { background: #b0bec5; }
-        #status { margin-top: 10px; font-weight: bold; color: #e53935; min-height: 20px; }
-        progress { width: 100%; height: 20px; margin-top: 10px; }
+        body { font-family: monospace; padding: 10px; background: #121212; color: #00ff00; }
+        .container { max-width: 800px; margin: auto; border: 1px solid #333; padding: 15px; border-radius: 8px; }
+        #output { width: 100%; height: 500px; margin-top: 15px; padding: 10px; border: 1px solid #00ff00; background: #000; color: #00ff00; white-space: pre-wrap; overflow-y: auto; font-size: 12px; box-sizing: border-box; }
+        button { background: #00ff00; color: #000; border: none; padding: 15px; width: 100%; font-weight: bold; cursor: pointer; border-radius: 4px; margin-top: 10px; }
+        #status { margin-top: 10px; font-weight: bold; font-size: 14px; text-align: center; }
+        progress { width: 100%; margin-top: 10px; }
+        input[type="file"] { background: #222; color: #eee; padding: 10px; width: 100%; box-sizing: border-box; }
     </style>
 </head>
 <body>
 
-<div class="card">
-    <h3>Yüksek Performanslı Metin Dönüştürücü</h3>
-    <p style="font-size: 13px; color: #666;">Uzun ekran görüntüleri için optimize edilmiştir.</p>
-    
-    <input type="file" id="imageInput" accept="image/*" style="width: 100%;">
-    <button id="startBtn" onclick="processImage()">METNE DÖNÜŞTÜR</button>
-    
+<div class="container">
+    <h2 style="text-align: center;">Maç Skorları OCR (Keskin Mod)</h2>
+    <input type="file" id="imageInput" accept="image/*">
+    <button id="startBtn" onclick="processImage()">VERİYİ ÇIKAR</button>
     <div id="status">Hazır</div>
     <progress id="progressBar" value="0" max="100" style="display:none;"></progress>
-    
-    <div id="output" placeholder="Sonuçlar burada görünecek..."></div>
+    <div id="output"></div>
 </div>
 
 <script>
@@ -38,13 +34,12 @@
         const btn = document.getElementById('startBtn');
         const prog = document.getElementById('progressBar');
 
-        if (!fileInput.files[0]) return alert("Resim seçilmedi!");
+        if (!fileInput.files[0]) return alert("Resim seçin!");
 
         btn.disabled = true;
-        output.innerText = "";
+        output.innerText = "İşlem başlıyor...";
         prog.style.display = "block";
-        status.innerText = "Motor başlatılıyor...";
-
+        
         const file = fileInput.files[0];
         const img = new Image();
         const objectUrl = URL.createObjectURL(file);
@@ -53,32 +48,41 @@
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             
-            // Çok uzun resimleri 2000 piksellik parçalara bölerek RAM'i koruyoruz
-            const segmentHeight = 2000;
+            // Skorların kaybolmaması için keskinleştirme ve kontrast artırımı
+            const segmentHeight = 1500; // Daha küçük parçalar daha iyi odaklanma sağlar
             const totalSegments = Math.ceil(img.height / segmentHeight);
             
-            const worker = await Tesseract.createWorker('tur');
+            // Tesseract'ı özel parametrelerle başlat (Sadece Türkçe değil, sayıları da önceliklendir)
+            const worker = await Tesseract.createWorker('tur+eng');
             
+            // Sayısal veriler için motor parametrelerini ayarla
+            await worker.setParameters({
+                tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzçğıöşüÇĞİÖŞÜ-.:() ',
+                preserve_interword_spaces: '1',
+            });
+
             let finalResult = "";
 
             for (let i = 0; i < totalSegments; i++) {
-                status.innerText = `İşleniyor: Parça ${i + 1} / ${totalSegments}`;
-                prog.value = ((i / totalSegments) * 100);
+                status.innerText = `Okunuyor: %${Math.round((i/totalSegments)*100)}`;
+                prog.value = (i / totalSegments) * 100;
 
                 const currentHeight = Math.min(segmentHeight, img.height - (i * segmentHeight));
                 canvas.width = img.width;
                 canvas.height = currentHeight;
 
+                // Görüntü Ön İşleme (Filtreleme)
+                ctx.filter = 'contrast(1.5) grayscale(1)'; // Skorları netleştirmek için siyah-beyaz ve yüksek kontrast
                 ctx.drawImage(img, 0, i * segmentHeight, img.width, currentHeight, 0, 0, img.width, currentHeight);
                 
-                const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.9));
+                const blob = await new Promise(res => canvas.toBlob(res, 'image/png')); // PNG daha nettir
                 const { data: { text } } = await worker.recognize(blob);
                 
                 finalResult += text + "\n";
-                output.innerText = finalResult; // Anlık olarak ekrana yazdır
+                output.innerText = finalResult;
             }
 
-            status.innerText = "Bitti!";
+            status.innerText = "İşlem Tamamlandı!";
             prog.value = 100;
             btn.disabled = false;
             await worker.terminate();
