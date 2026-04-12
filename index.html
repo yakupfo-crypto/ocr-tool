@@ -3,26 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Skor Odaklı Keskin OCR</title>
+    <title>Skor Odaklı Kesintisiz OCR</title>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
-        body { font-family: monospace; padding: 10px; background: #121212; color: #00ff00; }
-        .container { max-width: 800px; margin: auto; border: 1px solid #333; padding: 15px; border-radius: 8px; }
-        #output { width: 100%; height: 500px; margin-top: 15px; padding: 10px; border: 1px solid #00ff00; background: #000; color: #00ff00; white-space: pre-wrap; overflow-y: auto; font-size: 12px; box-sizing: border-box; }
-        button { background: #00ff00; color: #000; border: none; padding: 15px; width: 100%; font-weight: bold; cursor: pointer; border-radius: 4px; margin-top: 10px; }
-        #status { margin-top: 10px; font-weight: bold; font-size: 14px; text-align: center; }
-        progress { width: 100%; margin-top: 10px; }
-        input[type="file"] { background: #222; color: #eee; padding: 10px; width: 100%; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; padding: 15px; background: #121212; color: #eee; }
+        .card { background: #1e1e1e; padding: 20px; border-radius: 12px; max-width: 600px; margin: auto; border: 1px solid #333; }
+        #output { width: 100%; height: 450px; margin-top: 15px; padding: 12px; border: 1px solid #444; border-radius: 8px; background: #000; color: #00ff00; white-space: pre-wrap; text-align: left; overflow-y: auto; box-sizing: border-box; font-family: monospace; font-size: 13px; }
+        button { background: #00c853; color: white; border: none; padding: 15px; border-radius: 6px; cursor: pointer; font-size: 16px; width: 100%; font-weight: bold; }
+        button:disabled { background: #555; }
+        #status { margin: 10px 0; font-weight: bold; color: #ffab00; }
+        progress { width: 100%; height: 10px; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2 style="text-align: center;">Maç Skorları OCR (Keskin Mod)</h2>
-    <input type="file" id="imageInput" accept="image/*">
-    <button id="startBtn" onclick="processImage()">VERİYİ ÇIKAR</button>
+<div class="card">
+    <h3>Maç Skoru & Metin Ayıklayıcı</h3>
+    <p style="font-size: 12px; color: #aaa;">İlk yarı skorları ve rakamlar için optimize edildi.</p>
+    
+    <input type="file" id="imageInput" accept="image/*" style="margin-bottom:10px; width:100%;">
+    <button id="startBtn" onclick="processImage()">ŞİMDİ OKU</button>
+    
     <div id="status">Hazır</div>
     <progress id="progressBar" value="0" max="100" style="display:none;"></progress>
+    
     <div id="output"></div>
 </div>
 
@@ -34,12 +38,13 @@
         const btn = document.getElementById('startBtn');
         const prog = document.getElementById('progressBar');
 
-        if (!fileInput.files[0]) return alert("Resim seçin!");
+        if (!fileInput.files[0]) return alert("Resim seçilmedi!");
 
         btn.disabled = true;
-        output.innerText = "İşlem başlıyor...";
+        output.innerText = "";
         prog.style.display = "block";
-        
+        status.innerText = "Sistem hazırlanıyor...";
+
         const file = fileInput.files[0];
         const img = new Image();
         const objectUrl = URL.createObjectURL(file);
@@ -48,41 +53,41 @@
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             
-            // Skorların kaybolmaması için keskinleştirme ve kontrast artırımı
-            const segmentHeight = 1500; // Daha küçük parçalar daha iyi odaklanma sağlar
+            const segmentHeight = 1500; // Daha küçük parçalar daha iyi doğruluk sağlar
             const totalSegments = Math.ceil(img.height / segmentHeight);
             
-            // Tesseract'ı özel parametrelerle başlat (Sadece Türkçe değil, sayıları da önceliklendir)
+            // Skorlar için sayısal hassasiyeti artırılmış motor
             const worker = await Tesseract.createWorker('tur+eng');
             
-            // Sayısal veriler için motor parametrelerini ayarla
+            // Tesseract parametre ayarları: Sayı ve sembolleri korur
             await worker.setParameters({
-                tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzçğıöşüÇĞİÖŞÜ-.:() ',
+                tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzĞÜŞİÖÇğüşıöç()-: ',
                 preserve_interword_spaces: '1',
             });
 
             let finalResult = "";
 
             for (let i = 0; i < totalSegments; i++) {
-                status.innerText = `Okunuyor: %${Math.round((i/totalSegments)*100)}`;
-                prog.value = (i / totalSegments) * 100;
+                status.innerText = `Skorlar okunuyor: ${i + 1}/${totalSegments}`;
+                prog.value = ((i / totalSegments) * 100);
 
                 const currentHeight = Math.min(segmentHeight, img.height - (i * segmentHeight));
                 canvas.width = img.width;
                 canvas.height = currentHeight;
 
-                // Görüntü Ön İşleme (Filtreleme)
-                ctx.filter = 'contrast(1.5) grayscale(1)'; // Skorları netleştirmek için siyah-beyaz ve yüksek kontrast
+                // --- Görüntü İyileştirme (Contrast & Grayscale) ---
+                ctx.filter = 'grayscale(1) contrast(1.2) brightness(1.1)';
                 ctx.drawImage(img, 0, i * segmentHeight, img.width, currentHeight, 0, 0, img.width, currentHeight);
                 
-                const blob = await new Promise(res => canvas.toBlob(res, 'image/png')); // PNG daha nettir
+                const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
                 const { data: { text } } = await worker.recognize(blob);
                 
                 finalResult += text + "\n";
                 output.innerText = finalResult;
+                output.scrollTop = output.scrollHeight; // Otomatik aşağı kaydır
             }
 
-            status.innerText = "İşlem Tamamlandı!";
+            status.innerText = "İşlem başarıyla tamamlandı!";
             prog.value = 100;
             btn.disabled = false;
             await worker.terminate();
