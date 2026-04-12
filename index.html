@@ -3,64 +3,59 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hızlı ve Kesintisiz OCR</title>
+    <title>Sıfır Hata OCR - Hızlı Dönüştürücü</title>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
-        body { font-family: sans-serif; padding: 20px; background: #f4f4f4; line-height: 1.6; }
-        .container { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        h2 { color: #333; font-size: 1.2rem; }
-        input[type="file"] { margin: 20px 0; width: 100%; }
-        #status { color: blue; font-weight: bold; margin-bottom: 10px; }
-        #output { width: 100%; height: 300px; margin-top: 20px; border: 1px solid #ccc; padding: 10px; white-space: pre-wrap; background: #fff; overflow-y: auto; }
-        button { background: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; width: 100%; font-size: 1rem; }
-        button:disabled { background: #ccc; }
+        body { font-family: sans-serif; padding: 20px; background: #f4f4f4; text-align: center; }
+        .container { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        #output { width: 100%; height: 300px; margin-top: 20px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; background: #fafafa; white-space: pre-wrap; text-align: left; overflow-y: auto; }
+        button { background: #28a745; color: white; border: none; padding: 15px 25px; border-radius: 5px; cursor: pointer; font-size: 16px; margin-top: 10px; }
+        #status { color: #007bff; margin-top: 10px; font-weight: bold; }
+        img { max-width: 100%; margin-top: 10px; display: none; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>Sıfır Hata Metin Dönüştürücü</h2>
-    <p>Uzun ekran görüntüsünü seçin ve başlatın.</p>
-    
+    <h2>Görüntüden Metne (OCR)</h2>
+    <p>Uzun ekran görüntüsünü seçin:</p>
     <input type="file" id="imageInput" accept="image/*">
+    <br>
+    <button onclick="processImage()">Metne Dönüştür</button>
     <div id="status">Hazır.</div>
-    <button id="startBtn">Metne Dönüştür</button>
-
-    <textarea id="output" placeholder="Metin burada görünecek..." readonly></textarea>
+    <div id="output" placeholder="Metin burada görünecek..."></div>
 </div>
 
 <script>
-    const imageInput = document.getElementById('imageInput');
-    const startBtn = document.getElementById('startBtn');
-    const status = document.getElementById('status');
-    const output = document.getElementById('output');
+    async function processImage() {
+        const fileInput = document.getElementById('imageInput');
+        const output = document.getElementById('output');
+        const status = document.getElementById('status');
 
-    startBtn.onclick = async () => {
-        if (!imageInput.files[0]) {
-            alert("Lütfen önce bir resim seçin!");
+        if (fileInput.files.length === 0) {
+            alert("Lütfen bir resim seçin!");
             return;
         }
 
-        status.innerText = "İşlem yapılıyor... Lütfen bekleyin (Bu işlem uzun görsellerde 1-2 dakika sürebilir)";
-        startBtn.disabled = true;
-        output.value = "";
+        const image = fileInput.files[0];
+        status.innerText = "İşleniyor... Lütfen bekleyin (Uzun resimlerde 1-2 dk sürebilir).";
+        output.innerText = "";
 
         try {
-            // Tesseract Worker başlatma (Türkçe ve İngilizce desteği)
-            const worker = await Tesseract.createWorker('tur+eng');
+            // Tesseract.js motorunu başlatıyoruz
+            const worker = await Tesseract.createWorker('tur+eng'); // Türkçe ve İngilizce desteği
             
-            const { data: { text } } = await worker.recognize(imageInput.files[0]);
+            const { data: { text } } = await worker.recognize(image);
             
-            output.value = text;
+            output.innerText = text;
             status.innerText = "Tamamlandı!";
+            
             await worker.terminate();
         } catch (error) {
             console.error(error);
-            status.innerText = "Hata oluştu!";
-        } finally {
-            startBtn.disabled = false;
+            status.innerText = "Hata oluştu! Resim çok büyükse parçalara bölmeyi deneyin.";
         }
-    };
+    }
 </script>
 
 </body>
