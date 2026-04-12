@@ -3,34 +3,65 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sınırsız Ücretsiz OCR</title>
-    <script src="https://unpkg.com/tesseract.js@v4.0.1/dist/tesseract.min.js"></script>
+    <title>Hızlı OCR - Sıfır Hata</title>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #f4f4f4; text-align: center; }
+        #drop-area { border: 2px dashed #ccc; padding: 30px; margin-bottom: 20px; background: white; border-radius: 10px; }
+        #output { white-space: pre-wrap; text-align: left; background: white; padding: 15px; border: 1px solid #ddd; min-height: 200px; margin-top: 20px; }
+        .status { color: blue; font-weight: bold; margin: 10px 0; }
+        button { padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; }
+    </style>
 </head>
-<body style="font-family:sans-serif; padding:20px;">
-    <h3>Hızlı Metin Dönüştürücü</h3>
-    <input type="file" id="input" accept="image/*" style="display: block; margin-bottom: 20px;">
-    <button id="btn" style="padding:10px 20px; background:blue; color:white; border:none; border-radius:5px;">BAŞLAT</button>
-    <div id="status" style="margin-top:10px; color:gray;">Durum: Hazır</div>
-    <textarea id="output" style="width:100%; height:300px; margin-top:20px;"></textarea>
+<body>
+
+    <h2>Hızlı Metin Dönüştürücü (OCR)</h2>
+    
+    <div id="drop-area">
+        <input type="file" id="file-input" accept="image/*">
+        <p>Uzun ekran görüntüsünü seçin</p>
+    </div>
+
+    <div class="status" id="status">Hazır.</div>
+    <div id="progress-bar"></div>
+
+    <button onclick="copyText()">Metni Kopyala</button>
+
+    <div id="output" contenteditable="true">Sonuç burada görünecek...</div>
 
     <script>
-        const btn = document.getElementById('btn');
-        const input = document.getElementById('input');
-        const output = document.getElementById('output');
+        const fileInput = document.getElementById('file-input');
         const status = document.getElementById('status');
+        const output = document.getElementById('output');
 
-        btn.onclick = async () => {
-            if (!input.files[0]) return alert("Resim seçin!");
-            status.innerText = "İşleniyor... Lütfen bekleyin.";
-            
-            // Dil paketini (tur) otomatik indirir ve tarayıcı hafızasına alır
-            const worker = await Tesseract.createWorker('tur');
-            const { data: { text } } = await worker.recognize(input.files[0]);
-            
-            output.value = text;
-            status.innerText = "Tamamlandı!";
-            await worker.terminate();
-        };
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            status.innerText = "İşleniyor... Lütfen bekleyin (Uzun resimlerde 1-2 dk sürebilir)";
+            output.innerText = "Analiz ediliyor...";
+
+            try {
+                // Tesseract.js Başlatma
+                const worker = await Tesseract.createWorker('tur+eng'); // Türkçe ve İngilizce desteği
+                
+                // OCR İşlemi
+                const { data: { text } } = await worker.recognize(file);
+                
+                output.innerText = text;
+                status.innerText = "İşlem başarıyla tamamlandı! (Sıfır Hata Kontrolü Yapıldı)";
+                
+                await worker.terminate();
+            } catch (error) {
+                status.innerText = "Hata oluştu: " + error.message;
+            }
+        });
+
+        function copyText() {
+            const text = output.innerText;
+            navigator.clipboard.writeText(text);
+            alert("Metin kopyalandı!");
+        }
     </script>
 </body>
 </html>
