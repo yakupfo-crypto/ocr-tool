@@ -3,27 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sıfır Hata OCR - Hızlı Dönüştürücü</title>
+    <title>Hızlı ve Kesintisiz OCR</title>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
-        body { font-family: sans-serif; padding: 20px; background: #f4f4f4; text-align: center; }
-        .container { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        #output { width: 100%; height: 300px; margin-top: 20px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; background: #fafafa; white-space: pre-wrap; text-align: left; overflow-y: auto; }
-        button { background: #28a745; color: white; border: none; padding: 15px 25px; border-radius: 5px; cursor: pointer; font-size: 16px; margin-top: 10px; }
-        #status { color: #007bff; margin-top: 10px; font-weight: bold; }
-        img { max-width: 100%; margin-top: 10px; display: none; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 15px; background: #eceff1; color: #333; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 600px; margin: auto; }
+        #output { width: 100%; height: 400px; margin-top: 15px; padding: 12px; border: 1px solid #cfd8dc; border-radius: 8px; background: #fafafa; white-space: pre-wrap; text-align: left; overflow-y: auto; box-sizing: border-box; font-size: 14px; }
+        button { background: #1e88e5; color: white; border: none; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-size: 16px; width: 100%; font-weight: bold; margin-top: 10px; }
+        button:disabled { background: #b0bec5; }
+        #status { margin-top: 10px; font-weight: bold; color: #e53935; min-height: 20px; }
+        progress { width: 100%; height: 20px; margin-top: 10px; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>Görüntüden Metne (OCR)</h2>
-    <p>Uzun ekran görüntüsünü seçin:</p>
-    <input type="file" id="imageInput" accept="image/*">
-    <br>
-    <button onclick="processImage()">Metne Dönüştür</button>
-    <div id="status">Hazır.</div>
-    <div id="output" placeholder="Metin burada görünecek..."></div>
+<div class="card">
+    <h3>Yüksek Performanslı Metin Dönüştürücü</h3>
+    <p style="font-size: 13px; color: #666;">Uzun ekran görüntüleri için optimize edilmiştir.</p>
+    
+    <input type="file" id="imageInput" accept="image/*" style="width: 100%;">
+    <button id="startBtn" onclick="processImage()">METNE DÖNÜŞTÜR</button>
+    
+    <div id="status">Hazır</div>
+    <progress id="progressBar" value="0" max="100" style="display:none;"></progress>
+    
+    <div id="output" placeholder="Sonuçlar burada görünecek..."></div>
 </div>
 
 <script>
@@ -31,30 +35,57 @@
         const fileInput = document.getElementById('imageInput');
         const output = document.getElementById('output');
         const status = document.getElementById('status');
+        const btn = document.getElementById('startBtn');
+        const prog = document.getElementById('progressBar');
 
-        if (fileInput.files.length === 0) {
-            alert("Lütfen bir resim seçin!");
-            return;
-        }
+        if (!fileInput.files[0]) return alert("Resim seçilmedi!");
 
-        const image = fileInput.files[0];
-        status.innerText = "İşleniyor... Lütfen bekleyin (Uzun resimlerde 1-2 dk sürebilir).";
+        btn.disabled = true;
         output.innerText = "";
+        prog.style.display = "block";
+        status.innerText = "Motor başlatılıyor...";
 
-        try {
-            // Tesseract.js motorunu başlatıyoruz
-            const worker = await Tesseract.createWorker('tur+eng'); // Türkçe ve İngilizce desteği
+        const file = fileInput.files[0];
+        const img = new Image();
+        const objectUrl = URL.createObjectURL(file);
+
+        img.onload = async () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
             
-            const { data: { text } } = await worker.recognize(image);
+            // Çok uzun resimleri 2000 piksellik parçalara bölerek RAM'i koruyoruz
+            const segmentHeight = 2000;
+            const totalSegments = Math.ceil(img.height / segmentHeight);
             
-            output.innerText = text;
-            status.innerText = "Tamamlandı!";
+            const worker = await Tesseract.createWorker('tur');
             
+            let finalResult = "";
+
+            for (let i = 0; i < totalSegments; i++) {
+                status.innerText = `İşleniyor: Parça ${i + 1} / ${totalSegments}`;
+                prog.value = ((i / totalSegments) * 100);
+
+                const currentHeight = Math.min(segmentHeight, img.height - (i * segmentHeight));
+                canvas.width = img.width;
+                canvas.height = currentHeight;
+
+                ctx.drawImage(img, 0, i * segmentHeight, img.width, currentHeight, 0, 0, img.width, currentHeight);
+                
+                const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.9));
+                const { data: { text } } = await worker.recognize(blob);
+                
+                finalResult += text + "\n";
+                output.innerText = finalResult; // Anlık olarak ekrana yazdır
+            }
+
+            status.innerText = "Bitti!";
+            prog.value = 100;
+            btn.disabled = false;
             await worker.terminate();
-        } catch (error) {
-            console.error(error);
-            status.innerText = "Hata oluştu! Resim çok büyükse parçalara bölmeyi deneyin.";
-        }
+            URL.revokeObjectURL(objectUrl);
+        };
+
+        img.src = objectUrl;
     }
 </script>
 
