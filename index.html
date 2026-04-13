@@ -3,23 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Eksiksiz Skor OCR</title>
+    <title>Kesin Sonuç OCR</title>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
         body { font-family: sans-serif; padding: 10px; background: #000; color: #fff; }
-        .box { border: 2px solid #00ff00; padding: 15px; border-radius: 10px; }
-        #output { width: 100%; height: 500px; margin-top: 15px; background: #111; color: #0f0; border: 1px solid #333; padding: 10px; font-size: 12px; overflow-y: scroll; white-space: pre-wrap; font-family: monospace; }
-        button { background: #00ff00; color: #000; border: none; padding: 15px; width: 100%; font-weight: bold; font-size: 16px; border-radius: 5px; cursor: pointer; }
-        #status { color: yellow; margin: 10px 0; font-size: 14px; }
+        .card { background: #1a1a1a; padding: 15px; border-radius: 10px; border: 1px solid #333; }
+        #output { width: 100%; height: 500px; margin-top: 10px; padding: 10px; border: 1px solid #444; background: #050505; color: #00ff41; white-space: pre; overflow-x: auto; font-size: 12px; font-family: 'Courier New', monospace; }
+        button { background: #007bff; color: white; border: none; padding: 15px; border-radius: 5px; width: 100%; font-weight: bold; margin-bottom: 10px; }
+        #status { color: #ffcc00; margin: 5px 0; font-size: 14px; text-align: center; }
     </style>
 </head>
 <body>
 
-<div class="box">
-    <h3>Sıfır Hata Metin Ayıklayıcı</h3>
-    <input type="file" id="imageInput" accept="image/*" style="margin-bottom:15px; color:white;">
-    <button id="startBtn" onclick="processImage()">METNE DÖK (TAM TARAMA)</button>
-    <div id="status">Resim bekleniyor...</div>
+<div class="card">
+    <h4 style="margin:0 0 10px 0;">Gelişmiş Skor Okuyucu</h4>
+    <input type="file" id="imageInput" accept="image/*" style="display:block; margin-bottom:10px; color:#ccc;">
+    <button id="startBtn" onclick="processImage()">VERİYİ AYIKLA</button>
+    <div id="status">Resim Bekleniyor...</div>
     <div id="output"></div>
 </div>
 
@@ -34,7 +34,7 @@
 
         btn.disabled = true;
         output.innerText = "";
-        status.innerText = "Yapay Zeka Hazırlanıyor...";
+        status.innerText = "Yapay zeka hazırlanıyor...";
 
         const file = fileInput.files[0];
         const img = new Image();
@@ -44,44 +44,43 @@
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             
-            // Hassasiyeti artırmak için her parçayı daha küçük (1000px) işliyoruz
-            const segmentHeight = 1000;
+            // Hassasiyet için parça boyutunu biraz daha büyüttük
+            const segmentHeight = 2500; 
             const totalSegments = Math.ceil(img.height / segmentHeight);
             
-            // PSM 6: Sayfayı tek bir blok metin olarak oku (Tablolar ve maç skorları için en iyisidir)
             const worker = await Tesseract.createWorker('tur+eng');
             
+            // KRİTİK AYARLAR: Google Keep benzeri tarama için
             await worker.setParameters({
-                tessedit_pageseg_mode: '6', 
                 tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzĞÜŞİÖÇğüşıöç()-:., ',
+                tessonly_re_projection: '1',
+                tessedit_pageseg_mode: '11', // PSM 11: Sparse text (Dağınık metinleri bulur, skorlar için en iyisidir)
             });
 
             let finalResult = "";
 
             for (let i = 0; i < totalSegments; i++) {
-                status.innerText = `Okunuyor: %${Math.round((i/totalSegments)*100)} (Lütfen Sayfayı Kapatmayın)`;
+                status.innerText = `Okunuyor: %${Math.round((i/totalSegments)*100)}`;
 
                 const currentHeight = Math.min(segmentHeight, img.height - (i * segmentHeight));
                 canvas.width = img.width;
                 canvas.height = currentHeight;
 
-                // Görüntü Ön İşleme (Sıfır Hata İçin Kritik Ayarlar)
-                // Kontrastı artırıp resmi tamamen siyah-beyaz (Threshold) seviyesine getiriyoruz
-                ctx.filter = 'grayscale(1) contrast(3) brightness(1.2) invert(0)';
+                // Sizin yaptığınız manuel ayarları bozmamak için filtreyi kaldırdım
                 ctx.drawImage(img, 0, i * segmentHeight, img.width, currentHeight, 0, 0, img.width, currentHeight);
                 
-                // PNG formatı veriyi kayıpsız iletir (JPEG kullanmayın)
                 const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
                 const { data: { text } } = await worker.recognize(blob);
                 
-                finalResult += text;
+                finalResult += text + "\n";
                 output.innerText = finalResult;
                 output.scrollTop = output.scrollHeight;
             }
 
-            status.innerText = "İŞLEM TAMAMLANDI!";
+            status.innerText = "TAMAMLANDI!";
             btn.disabled = false;
             await worker.terminate();
+            URL.revokeObjectURL(objectUrl);
         };
 
         img.src = objectUrl;
