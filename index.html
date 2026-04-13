@@ -3,87 +3,90 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kesin Sonuç OCR</title>
+    <title>Süper Hassas Skor Okuyucu</title>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
-        body { font-family: sans-serif; padding: 10px; background: #000; color: #fff; }
-        .card { background: #1a1a1a; padding: 15px; border-radius: 10px; border: 1px solid #333; }
-        #output { width: 100%; height: 500px; margin-top: 10px; padding: 10px; border: 1px solid #444; background: #050505; color: #00ff41; white-space: pre; overflow-x: auto; font-size: 12px; font-family: 'Courier New', monospace; }
-        button { background: #007bff; color: white; border: none; padding: 15px; border-radius: 5px; width: 100%; font-weight: bold; margin-bottom: 10px; }
-        #status { color: #ffcc00; margin: 5px 0; font-size: 14px; text-align: center; }
+        body { font-family: sans-serif; background: #000; color: #fff; padding: 10px; margin: 0; }
+        .container { background: #111; padding: 15px; border-radius: 12px; border: 1px solid #333; }
+        #output { 
+            width: 100%; height: 550px; margin-top: 15px; padding: 10px; 
+            border: 1px solid #00ff00; background: #050505; color: #00ff41; 
+            white-space: pre; overflow: auto; font-size: 11px; font-family: monospace;
+            box-sizing: border-box;
+        }
+        button { 
+            background: #2962ff; color: white; border: none; padding: 18px; 
+            border-radius: 8px; width: 100%; font-weight: bold; font-size: 16px;
+        }
+        #status { color: #ffeb3b; text-align: center; margin: 10px 0; font-size: 14px; }
+        progress { width: 100%; height: 12px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
-<div class="card">
-    <h4 style="margin:0 0 10px 0;">Gelişmiş Skor Okuyucu</h4>
-    <input type="file" id="imageInput" accept="image/*" style="display:block; margin-bottom:10px; color:#ccc;">
-    <button id="startBtn" onclick="processImage()">VERİYİ AYIKLA</button>
-    <div id="status">Resim Bekleniyor...</div>
-    <div id="output"></div>
+<div class="container">
+    <h3 style="text-align:center; color:#2962ff;">Profesyonel OCR Paneli</h3>
+    <input type="file" id="imageInput" accept="image/*" style="margin-bottom:15px; width:100%;">
+    <progress id="prog" value="0" max="100"></progress>
+    <button id="btn" onclick="startOCR()">VERİLERİ AYIKLA (SIFIR HATA)</button>
+    <div id="status">Hazır. Dosya seçin.</div>
+    <div id="output">Sonuçlar burada görünecek...</div>
 </div>
 
 <script>
-    async function processImage() {
-        const fileInput = document.getElementById('imageInput');
-        const output = document.getElementById('output');
-        const status = document.getElementById('status');
-        const btn = document.getElementById('startBtn');
+    async function startOCR() {
+        const file = document.getElementById('imageInput').files[0];
+        if (!file) return alert("Resim seçin!");
 
-        if (!fileInput.files[0]) return alert("Lütfen resim seçin!");
+        const status = document.getElementById('status');
+        const output = document.getElementById('output');
+        const prog = document.getElementById('prog');
+        const btn = document.getElementById('btn');
 
         btn.disabled = true;
         output.innerText = "";
-        status.innerText = "Yapay zeka hazırlanıyor...";
+        status.innerText = "Motor Başlatılıyor (LSTM Modu)...";
 
-        const file = fileInput.files[0];
+        // Tesseract İşçisini (Worker) Oluşturma
+        const worker = await Tesseract.createWorker('tur+eng', 1, {
+            logger: m => {
+                if(m.status === 'recognizing text') {
+                    prog.value = m.progress * 100;
+                    status.innerText = `Okunuyor: %${Math.round(m.progress * 100)}`;
+                }
+            }
+        });
+
+        // KRİTİK AYARLAR: Karakter tanıma ve sayfa analizi
+        await worker.setParameters({
+            tessedit_pageseg_mode: '6', // PSM 6: Sayfayı tek bir blok olarak gör (Tablolar için daha iyidir)
+            tessedit_ocr_engine_mode: '1', // OEM 1: Sadece LSTM (Yapay Zeka) motorunu kullan
+            tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzĞÜŞİÖÇğüşıöç()-:., /',
+            preserve_interword_spaces: '1'
+        });
+
         const img = new Image();
-        const objectUrl = URL.createObjectURL(file);
-
+        img.src = URL.createObjectURL(file);
+        
         img.onload = async () => {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             
-            // Hassasiyet için parça boyutunu biraz daha büyüttük
-            const segmentHeight = 2500; 
-            const totalSegments = Math.ceil(img.height / segmentHeight);
+            // Profesyonel uygulamalar resmi 2-3 kat büyütür, biz de öyle yapıyoruz.
+            // Bu, küçük skorların (parantez içindekiler) dev gibi görünmesini sağlar.
+            canvas.width = img.width * 2; 
+            canvas.height = img.height * 2;
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+            const { data: { text } } = await worker.recognize(canvas);
             
-            const worker = await Tesseract.createWorker('tur+eng');
-            
-            // KRİTİK AYARLAR: Google Keep benzeri tarama için
-            await worker.setParameters({
-                tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzĞÜŞİÖÇğüşıöç()-:., ',
-                tessonly_re_projection: '1',
-                tessedit_pageseg_mode: '11', // PSM 11: Sparse text (Dağınık metinleri bulur, skorlar için en iyisidir)
-            });
-
-            let finalResult = "";
-
-            for (let i = 0; i < totalSegments; i++) {
-                status.innerText = `Okunuyor: %${Math.round((i/totalSegments)*100)}`;
-
-                const currentHeight = Math.min(segmentHeight, img.height - (i * segmentHeight));
-                canvas.width = img.width;
-                canvas.height = currentHeight;
-
-                // Sizin yaptığınız manuel ayarları bozmamak için filtreyi kaldırdım
-                ctx.drawImage(img, 0, i * segmentHeight, img.width, currentHeight, 0, 0, img.width, currentHeight);
-                
-                const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
-                const { data: { text } } = await worker.recognize(blob);
-                
-                finalResult += text + "\n";
-                output.innerText = finalResult;
-                output.scrollTop = output.scrollHeight;
-            }
-
-            status.innerText = "TAMAMLANDI!";
+            output.innerText = text;
+            status.innerText = "İŞLEM TAMAMLANDI!";
             btn.disabled = false;
             await worker.terminate();
-            URL.revokeObjectURL(objectUrl);
         };
-
-        img.src = objectUrl;
     }
 </script>
 
